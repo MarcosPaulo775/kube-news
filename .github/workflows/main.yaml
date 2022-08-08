@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+  workflow_dispatch:
+
+jobs:
+
+  CI:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Docker login
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{secrets.DOCKERHUB_USER}}
+          password: ${{secrets.DOCKERHUB_PASSWORD}}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v3.0.0
+        with:
+          file: ./src/Dockerfile
+          context: ./src
+          push: true
+          tags: |
+            marcospaulo775/kube-news:${{github.run_number}}
+            marcospaulo775/kube-news:latest
+  CD:
+    runs-on: ubuntu-latest
+    needs: [CI]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Kubernetes Set Context
+        uses: Azure/k8s-set-context@v2
+        with:
+          method: kubeconfig
+          kubeconfig: ${{secrets.KUBE_CONFIG}}
+
+      - name: Deploy to kubernetes cluster
+        uses: Azure/k8s-deploy@3.1
+        with:
+          images: marcospaulo775/kube-news:latest
+          manifests: |
+            k8s/deployment.yaml
+            
+      
